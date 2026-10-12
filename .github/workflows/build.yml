@@ -1,7 +1,14 @@
+
 name: Build BW Foot Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -11,7 +18,45 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find Android project
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Locate Android project
         run: |
-          echo "Checking repository files"
-          find . -maxdepth 3 -type f | head -100
+          set -e
+          find . -maxdepth 5 -type f \( \
+            -name 'settings.gradle' -o \
+            -name 'settings.gradle.kts' -o \
+            -name 'gradlew' \
+          \) -print
+          test -f settings.gradle -o -f settings.gradle.kts
+
+      - name: Build APK
+        run: |
+          set -e
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
+
+      - name: Verify APK
+        run: |
+          set -e
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK"
+          unzip -l "$APK" | grep -E 'classes[0-9]*[.]dex'
+          echo "APK verified."
+          ls -lh "$APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BW-Foot-Android-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
