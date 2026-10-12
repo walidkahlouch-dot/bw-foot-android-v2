@@ -1,4 +1,3 @@
-
 name: Build BW Foot Android APK
 
 on:
@@ -29,34 +28,45 @@ jobs:
 
       - name: Check Android project
         run: |
-          echo "Checking project files..."
+          set -e
           test -f settings.gradle
           test -f build.gradle
           test -f app/build.gradle
           test -f app/src/main/AndroidManifest.xml
-          find app/src/main -type f
+          echo "Android project files found."
 
       - name: Build APK
         run: gradle assembleDebug --stacktrace
 
-      - name: Verify APK
+      - name: Verify APK archive and signature
         run: |
+          set -e
           APK="app/build/outputs/apk/debug/app-debug.apk"
 
-          if [ ! -f "$APK" ]; then
-            echo "ERROR: APK file not found"
-            find app/build/outputs -type f
-            exit 1
-          fi
+          test -f "$APK"
 
-          echo "APK size:"
+          echo "APK size in bytes:"
           stat -c%s "$APK"
 
           echo "Checking APK archive..."
           unzip -t "$APK"
 
           echo "Checking compiled app files..."
-          unzip -l "$APK" | grep -E 'classes.dex|AndroidManifest.xml'
+          unzip -l "$APK" | grep -E 'classes[0-9]*[.]dex|AndroidManifest.xml'
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)"
+
+          test -n "$APKSIGNER"
+          test -n "$ZIPALIGN"
+
+          echo "Checking APK alignment..."
+          "$ZIPALIGN" -c -v 4 "$APK"
+
+          echo "Checking APK signature..."
+          "$APKSIGNER" verify --verbose "$APK"
+
+          echo "All APK checks passed."
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -64,4 +74,3 @@ jobs:
           name: BW-Foot-Android-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          
