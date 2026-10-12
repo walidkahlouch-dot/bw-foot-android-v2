@@ -1,3 +1,4 @@
+
 name: Build BW Foot Android APK
 
 on:
@@ -26,23 +27,36 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Check Android project
+        run: |
+          echo "Checking project files..."
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          find app/src/main -type f
+
       - name: Build APK
         run: gradle assembleDebug --stacktrace
 
       - name: Verify APK
         run: |
           APK="app/build/outputs/apk/debug/app-debug.apk"
+
           if [ ! -f "$APK" ]; then
             echo "ERROR: APK file not found"
             find app/build/outputs -type f
             exit 1
           fi
-          SIZE=$(stat -c%s "$APK")
-          echo "APK size: $SIZE bytes"
-          if [ "$SIZE" -lt 100000 ]; then
-            echo "ERROR: APK is too small"
-            exit 1
-          fi
+
+          echo "APK size:"
+          stat -c%s "$APK"
+
+          echo "Checking APK archive..."
+          unzip -t "$APK"
+
+          echo "Checking compiled app files..."
+          unzip -l "$APK" | grep -E 'classes.dex|AndroidManifest.xml'
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -50,3 +64,4 @@ jobs:
           name: BW-Foot-Android-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          
